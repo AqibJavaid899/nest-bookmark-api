@@ -14,26 +14,47 @@ export class AuthProvider {
 
     try {
       const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        password: hashedPassword,
-      },
-    });
-    delete user.password
+        data: {
+          email: dto.email,
+          password: hashedPassword,
+        },
+      });
+      delete user.password;
 
-    return user;
+      return user;
     } catch (error) {
-      if(error instanceof PrismaClientKnownRequestError) {
-        if(error.code === 'P2002') {
-          throw new ForbiddenException("Credentials already taken by another user")
+      if (error instanceof PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          throw new ForbiddenException(
+            'Credentials already taken by another user',
+          );
         }
       }
       throw error;
     }
-    
   }
 
-  signin() {
-    return { msg: 'Signing in...' };
+  async signin(dto: AuthDto) {
+    try {
+      // find the user from the db and throw error if not found
+      const user = await this.prisma.user.findUnique({
+        where: {
+          email: dto.email,
+        },
+      });
+
+      if (!user) throw new ForbiddenException('User record not found');
+
+      // Compare the password and throw exception if it does not match with the record
+      const isMatched = await argon.verify(user.password, dto.password);
+
+      if (!isMatched) throw new ForbiddenException('Credentials are incorrect');
+
+      delete user.password;
+
+      return user;
+    } catch (error) {
+      throw error;
+    }
   }
 }
